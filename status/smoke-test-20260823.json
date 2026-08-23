@@ -1,0 +1,7 @@
+{
+  "success": false,
+  "status": "error",
+  "renderId": "smoke-test-20260823",
+  "message": "Command '['curl', '-fsS', '-F', 'reqtype=fileupload', '-F', 'fileToUpload=@/tmp/tmpl7tj9mbm/smoke-test-20260823.mp4', 'https://catbox.moe/user/api.php']' returned non-zero exit status 22.",
+  "engine": "github-actions-ffmpeg-edge-tts"
+}
