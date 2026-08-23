@@ -1,7 +1,10 @@
 {
-  "success": false,
-  "status": "error",
+  "success": true,
+  "status": "done",
   "renderId": "smoke-test-20260823",
-  "message": "Command '['curl', '-fsS', '-F', 'reqtype=fileupload', '-F', 'fileToUpload=@/tmp/tmpl7tj9mbm/smoke-test-20260823.mp4', 'https://catbox.moe/user/api.php']' returned non-zero exit status 22.",
+  "title": "اختبار محرك الريلز المجاني",
+  "url": "https://github.com/albraaabdrahman-source/albraa-free-reel-renderer/releases/download/generated-reels/smoke-test-20260823.mp4",
+  "width": 1080,
+  "height": 1920,
   "engine": "github-actions-ffmpeg-edge-tts"
 }
