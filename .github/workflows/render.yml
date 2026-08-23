@@ -36,6 +36,7 @@ jobs:
         continue-on-error: true
         env:
           PAYLOAD_JSON: ${{ inputs.payload_json }}
+          GH_TOKEN: ${{ github.token }}
         run: python scripts/render.py
       - name: Publish render status
         run: |

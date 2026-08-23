@@ -98,11 +98,13 @@ def main():
                 "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", str(output)
             ])
 
-            upload = subprocess.check_output([
-                "curl", "-fsS", "-F", f"reqtype=fileupload", "-F", f"fileToUpload=@{output}", "https://catbox.moe/user/api.php"
-            ], text=True).strip()
-            if not upload.startswith("https://"):
-                raise RuntimeError(f"Unexpected upload response: {upload[:200]}")
+            repository = os.environ["GITHUB_REPOSITORY"]
+            release_tag = "generated-reels"
+            run([
+                "gh", "release", "upload", release_tag, str(output),
+                "--repo", repository, "--clobber"
+            ])
+            upload = f"https://github.com/{repository}/releases/download/{release_tag}/{output.name}"
             status = {
                 "success": True,
                 "status": "done",
