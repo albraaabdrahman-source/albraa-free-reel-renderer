@@ -1,4 +1,3 @@
-import base64
 import json
 import math
 import os
@@ -50,7 +49,7 @@ def captions(text, total, out_path):
 
 
 def main():
-    payload = json.loads(base64.b64decode(os.environ["PAYLOAD_B64"]).decode("utf-8"))
+    payload = json.loads(os.environ["PAYLOAD_JSON"])
     render_id = re.sub(r"[^A-Za-z0-9_.-]", "-", str(payload["renderId"]))[:100]
     status_path = STATUS / f"{render_id}.json"
     try:

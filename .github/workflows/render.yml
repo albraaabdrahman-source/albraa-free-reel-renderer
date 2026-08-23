@@ -3,8 +3,8 @@ name: Render Arabic Reel
 on:
   workflow_dispatch:
     inputs:
-      payload_b64:
-        description: Base64 encoded render payload
+      payload_json:
+        description: JSON render payload
         required: true
         type: string
 
@@ -35,7 +35,7 @@ jobs:
         id: render
         continue-on-error: true
         env:
-          PAYLOAD_B64: ${{ inputs.payload_b64 }}
+          PAYLOAD_JSON: ${{ inputs.payload_json }}
         run: python scripts/render.py
       - name: Publish render status
         run: |
