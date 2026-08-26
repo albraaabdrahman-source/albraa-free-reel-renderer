@@ -1,0 +1,129 @@
+name: Process Reel Queue
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: reel-status-writer
+  cancel-in-progress: false
+
+env:
+  QUEUE_ORIGIN: https://albraa-reel-queue-worker.albraaabdrahman.workers.dev
+  OIDC_AUDIENCE: albraa-reel-renderer
+
+jobs:
+  claim-and-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claim one queued render with GitHub OIDC
+        id: claim
+        shell: bash
+        run: |
+          set -euo pipefail
+          token_response=$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${OIDC_AUDIENCE}")
+          oidc_token=$(jq -r '.value' <<<"${token_response}")
+          test -n "${oidc_token}" && test "${oidc_token}" != "null"
+
+          http_code=$(curl --silent --show-error \
+            -o claim.json -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer ${oidc_token}" \
+            -H 'Content-Type: application/json' \
+            "${QUEUE_ORIGIN}/v1/claim")
+
+          if [[ "${http_code}" == "204" ]]; then
+            echo "claimed=false" >> "${GITHUB_OUTPUT}"
+            echo "Queue is empty."
+            exit 0
+          fi
+          if [[ "${http_code}" != "200" ]]; then
+            echo "Queue claim failed with HTTP ${http_code}."
+            jq -c '{success, message}' claim.json 2>/dev/null || true
+            exit 1
+          fi
+
+          render_id=$(jq -r '.renderId' claim.json)
+          jq -e '.payload and (.renderId | type == "string")' claim.json >/dev/null
+          jq -c '.payload' claim.json > payload.json
+          echo "claimed=true" >> "${GITHUB_OUTPUT}"
+          echo "render_id=${render_id}" >> "${GITHUB_OUTPUT}"
+
+      - uses: actions/setup-python@v5
+        if: steps.claim.outputs.claimed == 'true'
+        with:
+          python-version: '3.11'
+
+      - name: Install renderer dependencies
+        if: steps.claim.outputs.claimed == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          python -m pip install --disable-pip-version-check edge-tts requests
+
+      - name: Render moving vertical Reel
+        id: render
+        if: steps.claim.outputs.claimed == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export PAYLOAD_JSON="$(jq -c . payload.json)"
+          python scripts/render.py
+
+      - name: Report render result to queue with fresh OIDC token
+        if: steps.claim.outputs.claimed == 'true' && always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          render_id='${{ steps.claim.outputs.render_id }}'
+          status_file="status/${render_id}.json"
+          if [[ ! -s "${status_file}" ]]; then
+            jq -n \
+              --arg renderId "${render_id}" \
+              '{success:false,status:"error",renderId:$renderId,message:"Renderer exited without a status file",engine:"github-actions-ffmpeg-edge-tts"}' \
+              > "${status_file}"
+          fi
+
+          token_response=$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${OIDC_AUDIENCE}")
+          oidc_token=$(jq -r '.value' <<<"${token_response}")
+          test -n "${oidc_token}" && test "${oidc_token}" != "null"
+
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer ${oidc_token}" \
+            -H 'Content-Type: application/json' \
+            --data-binary "@${status_file}" \
+            "${QUEUE_ORIGIN}/v1/complete/${render_id}" \
+            | jq -e '.success == true' >/dev/null
+
+      - name: Publish render status
+        if: steps.claim.outputs.claimed == 'true' && always()
+        run: |
+          git config user.name "albraa-reel-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add status/
+          git commit -m "render: publish queue status ${{ github.run_id }}" || exit 0
+          for attempt in 1 2 3; do
+            git pull --rebase origin main && git push origin main && exit 0
+            sleep $((attempt * 3))
+          done
+          exit 1
+
+      - name: Fail job when rendering failed
+        if: steps.claim.outputs.claimed == 'true' && steps.render.outcome == 'failure'
+        run: exit 1
