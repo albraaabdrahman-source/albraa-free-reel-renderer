@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>مساعد حافظة n8n</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #fff; max-width: 720px; margin: 60px auto; padding: 24px; }
+    button { width: 100%; padding: 20px; border: 0; border-radius: 14px; background: #ff6d5a; color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    #status { margin-top: 20px; padding: 14px; border-radius: 10px; background: #131b34; }
+  </style>
+</head>
+<body>
+  <h1>مساعد حافظة n8n المؤقت</h1>
+  <p>لا تحتوي هذه الصفحة على أسرار، ولا تنشر أي محتوى. وظيفتها الوحيدة نسخ Workflow النهائي إلى الحافظة المحلية.</p>
+  <button id="copy" disabled>نسخ Workflow كاملًا (93 عقدة)</button>
+  <div id="status">جارٍ تحميل الملف والتحقق منه…</div>
+  <script>
+    let raw = "";
+    const button = document.getElementById("copy");
+    const status = document.getElementById("status");
+    fetch("workflow.json", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.text();
+      })
+      .then((text) => {
+        const workflow = JSON.parse(text);
+        if (!Array.isArray(workflow.nodes) || workflow.nodes.length !== 93) throw new Error("ملف Workflow غير مطابق");
+        raw = text;
+        button.disabled = false;
+        status.textContent = "جاهز للنسخ: تم التحقق من 93 عقدة.";
+      })
+      .catch((error) => { status.textContent = `فشل التحميل: ${error.message}`; });
+    button.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(raw);
+      status.textContent = `تم النسخ بنجاح: ${raw.length} حرفًا.`;
+    });
+  </script>
+</body>
+</html>
